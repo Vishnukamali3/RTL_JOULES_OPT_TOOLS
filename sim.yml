@@ -1,0 +1,108 @@
+# =============================================================
+#  CI/CD : Universal Shift Register — Simulation Regression
+#  Runs on every push / PR.  Validates Passed=9 Failed=0.
+# =============================================================
+
+name: Verilog Simulation (XSim)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  simulate:
+    name: Run XSim & Validate Results
+    runs-on: ubuntu-latest          # swap to self-hosted if Vivado is on-prem
+
+    # ── If you have Vivado on a self-hosted runner, remove the container
+    # ── section and set VIVADO_BIN to the install path instead.
+    env:
+      VIVADO_BIN: /tools/Xilinx/Vivado/2024.1/bin   # adjust to your install
+      SIM_LOG:    sim_output.log
+
+    steps:
+      # ── 1. Checkout ───────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Verify Vivado is reachable ─────────────────────────────────────
+      - name: Check Vivado installation
+        run: |
+          if [ ! -f "$VIVADO_BIN/xvlog" ]; then
+            echo "ERROR: xvlog not found at $VIVADO_BIN"
+            echo "Set VIVADO_BIN in the workflow env or use a self-hosted runner."
+            exit 1
+          fi
+          echo "Vivado found: $($VIVADO_BIN/vivado -version | head -1)"
+
+      # ── 3. Compile DUT + Testbench with xvlog ────────────────────────────
+      - name: Compile Verilog (xvlog)
+        run: |
+          $VIVADO_BIN/xvlog --nolog \
+            universal_shift_register_8bit.v \
+            tb_universal_shift_register_8bit.v
+
+      # ── 4. Elaborate design with xelab ────────────────────────────────────
+      - name: Elaborate design (xelab)
+        run: |
+          $VIVADO_BIN/xelab --nolog \
+            -top tb_universal_shift_register_8bit \
+            -snapshot tb_snap \
+            -debug typical
+
+      # ── 5. Run simulation with xsim, capture output ───────────────────────
+      - name: Run simulation (xsim)
+        run: |
+          $VIVADO_BIN/xsim tb_snap --nolog --runall 2>&1 | tee $SIM_LOG
+
+      # ── 6. Validate Passed=9 Failed=0 ────────────────────────────────────
+      - name: Validate simulation results
+        run: |
+          echo "──────────────────────────────────────────"
+          echo "  Checking simulation output …"
+          echo "──────────────────────────────────────────"
+
+          # Extract pass / fail counts printed by the testbench
+          PASSED=$(grep -oP 'PASSED\s*:\s*\K[0-9]+' $SIM_LOG | tail -1)
+          FAILED=$(grep -oP 'FAILED\s*:\s*\K[0-9]+' $SIM_LOG | tail -1)
+
+          echo "  PASSED : $PASSED"
+          echo "  FAILED : $FAILED"
+
+          if [ -z "$PASSED" ] || [ -z "$FAILED" ]; then
+            echo "FATAL: Could not parse pass/fail counts from $SIM_LOG"
+            cat $SIM_LOG
+            exit 1
+          fi
+
+          if [ "$PASSED" -ne 9 ] || [ "$FAILED" -ne 0 ]; then
+            echo "REGRESSION FAILED — expected Passed=9 Failed=0, got Passed=$PASSED Failed=$FAILED"
+            echo "──── Full simulation log ────"
+            cat $SIM_LOG
+            exit 1
+          fi
+
+          echo "REGRESSION PASSED — Passed=$PASSED Failed=$FAILED ✓"
+
+      # ── 7. Upload sim log and VCD as artifacts (always, for debugging) ────
+      - name: Upload simulation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-artifacts-${{ github.sha }}
+          path: |
+            ${{ env.SIM_LOG }}
+            usr8_power.vcd
+            reports/
+          retention-days: 30
+
+      # ── 8. Upload reports/ folder so PPAC evidence is preserved ──────────
+      - name: Upload PPAC reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ppac-reports-${{ github.sha }}
+          path: reports/
+          retention-days: 90
