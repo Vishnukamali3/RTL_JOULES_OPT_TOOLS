@@ -1,0 +1,139 @@
+================================================================
+  UNIVERSAL SHIFT REGISTER — PPAC COMPARISON TESTBENCH v2
+  Clock=100MHz  Width=8-bit  Target=Artix-7 xc7a35t
+  Structural constants (derived from WIDTH=8):
+    NON_OPT_FF=10  OPT_FF=8  NON_OPT_NODES=8
+================================================================
+
+--- SECTION 1: FUNCTIONAL VERIFICATION ---
+
+[T1] Reset
+  [NON-OPT] PASS [T1] q=0x00
+  [OPT    ] PASS [T1] q=0x00
+
+[T2] Parallel Load (mode=11, par_in=0xA5)
+  [NON-OPT] PASS [T2] q=0xA5
+  [OPT    ] PASS [T2] q=0xA5
+
+[T3] Hold (mode=00)
+  [NON-OPT] PASS [T3] q=0xA5
+  [OPT    ] PASS [T3] q=0xA5
+
+[T4] Shift Right (mode=01)
+  [NON-OPT] PASS [T4] q=0xD5
+  [OPT    ] PASS [T4] q=0xD5
+  [NON-OPT] PASS [T5] q=0xEA
+  [OPT    ] PASS [T5] q=0xEA
+
+[T5] Shift Left (mode=10)
+  [NON-OPT] PASS [T6] q=0xAB
+  [OPT    ] PASS [T6] q=0xAB
+  [NON-OPT] PASS [T7] q=0x57
+  [OPT    ] PASS [T7] q=0x57
+
+[T6] Serial Output Tap Test (par_in=8'b11000001)
+  [OPT    ] PASS [T6] ser_out_r=1 ser_out_l=1  [wire tap - zero FF delay]
+  [NON-OPT] PASS [T6] ser_out_r=1 ser_out_l=1  [registered - 1 cycle late]
+
+[T7] Clock Enable (optimized DUT only)
+  [OPT    ] PASS [T7] clk_en=0 held q=0xFF  [FF CE pin works]
+  [NON-OPT] NOTE [T7] No clk_en port - q=0x7F (shifted, expected)
+
+--- SECTION 2: STRESS TEST (max toggle for power measurement) ---
+  Running 32-cycle alternating shift + 8-cycle load stress...
+  Stress test complete.
+
+================================================================
+  PPAC ANALYSIS REPORT
+  Artix-7 xc7a35t  |  100 MHz Target  |  WIDTH=8
+  (Area constants auto-derived: NON_OPT_FF=10, OPT_FF=8)
+================================================================
+
+  [FUNCTIONAL SUMMARY]
+  NON-OPT : Passed=9   Failed=0
+  OPT     : Passed=9   Failed=0
+
+  [PERFORMANCE ANALYSIS]
+  +---------------------------------------+--------------+--------------+
+  | Metric                                | NON-OPT      | OPT          |
+  +---------------------------------------+--------------+--------------+
+  | Target Clock Frequency                | 100 MHz      | 100 MHz      |
+  | Reset Type                            | Sync Hi-ACT  | Async Lo-ACT |
+  | Reset Mapping on FPGA                 | D-input mux  | FF CLR pin   |
+  | Next-State Logic Levels               | 2 (sep blks) | 1 (merged)   |
+  | Serial Out Latency                    | +1 cycle     | 0 (wire)     |
+  | Clock Enable Type                     | None         | FF CE pin    |
+  | Expected WNS @ 100MHz                 | NEGATIVE     | POSITIVE     |
+  | Expected Timing Status                | FAIL         | PASS         |
+  | Total Simulation Cycles               | 61           | 61           |
+  | Reset Operation Cycles                | 2            | 2            |
+  | Parallel Load Cycles                  | 1            | 1            |
+  | Shift Right Cycles                    | 2            | 2            |
+  | Shift Left Cycles                     | 2            | 2            |
+  +---------------------------------------+--------------+--------------+
+
+  [POWER ANALYSIS — Switching Activity Proxy]
+  NOTE: For exact mW run Vivado Report Power (post-implementation)
+  +---------------------------------------+--------------+--------------+
+  | Metric                                | NON-OPT      | OPT          |
+  +---------------------------------------+--------------+--------------+
+  | q bus toggle events                   | 38           | 36           |
+  | ser_out toggle events                 | 14           | 12           |
+  | Total logic toggle events             | 52           | 48           |
+  | Clock toggles                         | 61           | 61           |
+  | Clock gating method                   | None (always)| FF CE pin    |
+  | Extra FF switching (ser_out)          | Yes (2 FFs)  | No (wires)   |
+  | Toggle reduction (opt saves)          | --           | 4            |
+  | Expected Dynamic Power                | HIGHER       | LOWER        |
+  +---------------------------------------+--------------+--------------+
+
+  [AREA ANALYSIS — RTL Structural Count (auto-scaled to WIDTH=8)]
+  NOTE: For exact LUT/FF/Slice run Vivado Report Utilization
+  +---------------------------------------+--------------+--------------+
+  | Metric                                | NON-OPT      | OPT          |
+  +---------------------------------------+--------------+--------------+
+  | q register FFs                        | 8            | 8            |
+  | ser_out FFs (reg vs wire)             | 2 (reg)      | 0 (wire tap) |
+  | Total FF count (WIDTH+2 vs WIDTH)     | 10           | 8            |
+  | Intermediate d-nodes (WIDTH vs 0)     | 8            | 0            |
+  | Combinational logic levels            | 2            | 1            |
+  | Reset LUT consumption                 | Yes (D-mux)  | No (CLR pin) |
+  | CE LUT consumption                    | N/A          | No (CE pin)  |
+  | FFs saved by opt                      | --           | 2            |
+  | Logic nodes saved by opt              | --           | 8            |
+  | Expected LUT count                    | HIGHER       | LOWER        |
+  | Expected Slice usage                  | HIGHER       | LOWER        |
+  +---------------------------------------+--------------+--------------+
+
+  [CONGESTION ANALYSIS — Routing Complexity Proxy]
+  NOTE: For exact congestion map run Vivado post-implementation
+  +---------------------------------------+--------------+--------------+
+  | Metric                                | NON-OPT      | OPT          |
+  +---------------------------------------+--------------+--------------+
+  | mode signal change events             | 12           | 12           |
+  | Extra routing nodes (d-nodes)         | 8            | 0            |
+  | ser_out routing path                  | FF+wire(2x)  | direct wire  |
+  | Netlist depth (logic levels)          | Deeper       | Shallower    |
+  | Slice packing efficiency              | Lower        | Higher       |
+  | Estimated routing congestion          | HIGHER       | LOWER        |
+  +---------------------------------------+--------------+--------------+
+
+  [OVERALL PPAC SUMMARY]
+  +--------------+------------------+------------------+
+  | Category     | NON-OPT          | OPT              |
+  +--------------+------------------+------------------+
+  | Performance  | FAILS 100MHz     | PASSES 100MHz    |
+  | Power        | Higher switching | Lower switching  |
+  | Area         | More LUTs + FFs  | Fewer LUTs + FFs |
+  | Congestion   | Deeper netlist   | Compact netlist  |
+  +--------------+------------------+------------------+
+  OPT wins all 4 PPAC categories.
+
+  For exact numbers open Vivado after implementation:
+    Reports > Report Timing Summary  (Performance - WNS/TNS/Fmax)
+    Reports > Report Utilization     (Area - LUT/FF/Slice)
+    Reports > Report Power           (Power - mW dynamic/static)
+    Reports > Report DRC             (Design rule violations)
+================================================================
+
+xsim: Time (s): cpu = 00:00:01 ; elapsed = 00:00:02
